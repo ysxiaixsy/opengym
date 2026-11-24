@@ -21,7 +21,7 @@ import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC } from './lib/progression.js'
 import { MOBILE, shareExport } from './lib/mobile.js'
 import { setWorkoutPlace } from './lib/places.js'
-import { CheckinPlaceRow } from './components/PlaceSheets.jsx'
+import { CheckinPlaceRow, placePickerSheet } from './components/PlaceSheets.jsx'
 
 const S = () => useStore.getState().S
 const update = (...a) => useStore.getState().update(...a)
@@ -699,11 +699,17 @@ function DayAssign({ day, close }) {
 export const dayAssignSheet = day => ui().openSheet(close => <DayAssign day={day} close={close} />)
 
 /* ============================ workout detail ============================ */
-function WorkoutDetail({ w, close }) {
+function WorkoutDetail({ w: snap, close }) {
   const st = useStore(s => s.S)
+  const w = (st.workouts || []).find(x => x.id === snap.id) || snap
+  const pickPlace = () => placePickerSheet({ selected: w.placeId || null, onPick: id => update(s => {
+    const rec = (s.workouts || []).find(x => x.id === w.id); if (rec) setWorkoutPlace(s, rec, id)
+  }) })
   return <>
     <h3>{w.name}</h3>
-    <div className="muted small" style={{ marginBottom: 12 }}>{[fmtDate(w.d, true), ...durPart(w.end - w.start), fmtVol(w.vol, st.unit), ...(w.bw ? [fmtNum(w.bw) + ' ' + st.unit] : [])].join(' · ')}</div>
+    <div className="muted small" style={{ marginBottom: 6 }}>{[fmtDate(w.d, true), ...durPart(w.end - w.start), fmtVol(w.vol, st.unit), ...(w.bw ? [fmtNum(w.bw) + ' ' + st.unit] : [])].join(' · ')}</div>
+    <button className="placechip" onClick={pickPlace}><Icon name="pin" />{w.placeName || t('Add place')}</button>
+    <div style={{ height: 12 }} />
     {w.entries.map((e, i) => {
       const ex = EXIDX[e.id]
       return <div key={i} className="row" style={{ marginBottom: 12, alignItems: 'flex-start' }}>
@@ -766,7 +772,8 @@ export function WorkoutRow({ w, onClick }) {
   return <div className="item" onClick={onClick}>
     <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19 }}><Icon name={glyph} /></span>
     <div className="grow"><div className="tt">{w.name}</div>
-      <div className="ss">{[fmtDate(w.d, true), ...durPart(w.end - w.start), t('{0} sets', setsDone(w)), fmtVol(w.vol, st.unit)].join(' · ')}</div></div>
+      <div className="ss">{[fmtDate(w.d, true), ...durPart(w.end - w.start), t('{0} sets', setsDone(w)), fmtVol(w.vol, st.unit)].join(' · ')}</div>
+      {w.placeName && <div className="ss placeline-ss"><Icon name="pin" />{w.placeName}</div>}</div>
     {w.prs && w.prs.length > 0 && <span className="pr"><Icon name="trophy" />{w.prs.length} PR</span>}
     <Icon name="chevronRight" className="chev" />
   </div>

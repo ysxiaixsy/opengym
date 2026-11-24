@@ -922,3 +922,7 @@ h4.sec{
 .placeline{display:flex;align-items:center;gap:8px;width:100%;margin-top:12px;padding:11px 12px;border-radius:12px;background:var(--surface-2);color:var(--label);font:inherit;font-size:15px;text-align:left;border:0}
 .placeline span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .placeline .icn:first-child{color:var(--acc)}
+.placechip{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 10px;border-radius:99px;background:var(--surface-2);color:var(--label-2);font:inherit;font-size:13px;border:0;max-width:100%}
+.placechip .icn{color:var(--acc);font-size:13px;flex:none}
+.placeline-ss{display:flex;align-items:center;gap:4px}
+.placeline-ss .icn{font-size:12px;flex:none}
