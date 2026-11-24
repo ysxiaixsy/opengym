@@ -229,6 +229,25 @@ connecting anything that costs money.
 Users never see the provider's own error text — that goes to the admin card, where someone can
 act on it.
 
+## 9. Workout places and the map
+
+Users can tag workouts with a place ("Home", "Gold's BGC"). Saving a place for the first time
+shows a map, and its tiles are fetched by the user's browser from OpenStreetMap's public
+servers by default. The only thing those servers learn is the area being viewed. Places and
+their coordinates are stored with the rest of the user's data on your server, and never reach
+the AI Coach.
+
+To use your own tile server (or a provider you trust), set:
+
+```
+MAP_TILE_URL=https://tiles.example.com/{z}/{x}/{y}.png
+MAP_TILE_ATTRIBUTION=© OpenStreetMap contributors
+```
+
+Location is read only when someone has saved at least one place, and only once, when they start
+a workout. Browsers allow location only over HTTPS, so on a plain-HTTP install places still
+work, but the app can't recognise them automatically.
+
 ## Troubleshooting
 
 | Symptom | Fix |
