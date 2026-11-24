@@ -5,8 +5,9 @@ import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { t } from '../lib/i18n.js'
 import { getFix } from '../lib/geo.js'
-import { addPlace, movePlace, renamePlace, nearestPlace, cleanPlaceName, tileConfig, MATCH_M, NAME_MAX } from '../lib/places.js'
+import { addPlace, movePlace, renamePlace, nearestPlace, cleanPlaceName, tileConfig, suggestPlace, mergeSuggestion, MATCH_M, NAME_MAX } from '../lib/places.js'
 import { Button, TextField } from './ui.jsx'
+import Icon from './Icon.jsx'
 
 const PlaceMap = lazy(() => import('./PlaceMap.jsx'))
 
@@ -114,4 +115,82 @@ function PlaceMapSheet({ placeId, onDone, close }) {
 /** Set a new place (no placeId) or move/rename one. onDone(placeId) after saving or picking a duplicate. */
 export function placeMapSheet({ placeId, onDone } = {}) {
   return ui().openSheet(close => <PlaceMapSheet placeId={placeId} onDone={onDone} close={close} />)
+}
+
+/* ---------- pick a place: check-in, a running workout, a past workout ---------- */
+function PlacePicker({ selected, nearbyId, onPick, close }) {
+  const places = useStore(s => s.S.places) || []
+  const list = nearbyId ? [...places.filter(p => p.id === nearbyId), ...places.filter(p => p.id !== nearbyId)] : places
+  const pick = id => { close(); onPick(id) }
+  return <>
+    <h3>{t('Where are you training?')}</h3>
+    <div className="list" style={{ margin: '12px 0' }}>
+      {list.map(p => <div key={p.id} className="item" onClick={() => pick(p.id)}>
+        <Icon name="pin" />
+        <div className="grow"><div className="tt">{p.name}</div>
+          {p.id === nearbyId && <div className="ss">{t('nearby?')}</div>}</div>
+        {p.id === selected && <Icon name="check" style={{ color: 'var(--acc)' }} />}
+      </div>)}
+      <div className="item" onClick={() => { close(); placeMapSheet({ onDone: onPick }) }}>
+        <Icon name="plus" /><div className="grow"><div className="tt">{t('New place (set on map)')}</div></div>
+      </div>
+    </div>
+    <Button variant="ghost" className="dim" onClick={() => pick(null)}>{selected ? t('No place') : t('Skip')}</Button>
+  </>
+}
+
+/** onPick(placeId | null). nearbyId is listed first and tagged "nearby?". */
+export function placePickerSheet({ selected = null, nearbyId, onPick }) {
+  return ui().openSheet(close => <PlacePicker selected={selected} nearbyId={nearbyId} onPick={onPick} close={close} />)
+}
+
+/**
+ * The place row in the Quick check-in. `place` is { placeId, touched } owned by the check-in;
+ * this reads location once (only when places exist) and folds the suggestion in, never over a
+ * pick the user made. Unmounting with the sheet drops a late answer on the floor.
+ */
+export function CheckinPlaceRow({ place, setPlace }) {
+  const places = useStore(s => s.S.places) || []
+  const lastPlaceId = useStore(s => s.S.lastPlaceId)
+  const has = places.length > 0
+  const [sug, setSug] = useState(null)
+
+  useEffect(() => {
+    if (!has) return
+    let live = true
+    getFix().then(fix => {
+      if (!live) return
+      const s = suggestPlace({ fix, places: S().places, lastPlaceId })
+      setSug(s)
+      setPlace(cur => mergeSuggestion(cur, s))
+    })
+    return () => { live = false }
+    // Once per check-in: a place added mid-sheet arrives as a pick, not a new suggestion.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [has])
+
+  const picked = id => setPlace({ placeId: id, touched: true })
+  const openMap = () => placeMapSheet({ onDone: picked })
+  const nearbyId = sug && sug.kind === 'nearby' ? sug.placeId : undefined
+  const openPicker = () => placePickerSheet({ selected: place.placeId, nearbyId, onPick: picked })
+  const sel = place.placeId && places.find(p => p.id === place.placeId)
+
+  if (!has && !sel) return <PlaceLine icon="pin" text={t('Add a place')} dim onClick={openMap} />
+  if (sel) return <PlaceLine icon="pin" text={sel.name} onClick={openPicker} />
+  if (!sug) return <PlaceLine icon="pin" text={t('Finding your place…')} dim onClick={openPicker} />
+  if (sug.kind === 'new' && !place.touched) return <div style={{ marginTop: 12 }}>
+    <Button variant="tinted" icon="pin" onClick={openMap}>{t('New place — set it on the map')}</Button>
+    <Button variant="ghost" className="dim" size="sm" onClick={openPicker}>{t('or pick a saved place')}</Button>
+  </div>
+  if (nearbyId && !place.touched) {
+    const n = places.find(p => p.id === nearbyId)
+    return <PlaceLine icon="pin" text={t('Near {0}?', n ? n.name : '')} onClick={openPicker} />
+  }
+  return <PlaceLine icon="pin" text={t('Choose a place')} dim onClick={openPicker} />
+}
+
+function PlaceLine({ icon, text, dim, onClick }) {
+  return <button className="placeline" onClick={onClick}>
+    <Icon name={icon} /><span className={dim ? 'dim' : ''}>{text}</span><Icon name="chevronRight" className="chev" />
+  </button>
 }
