@@ -35,18 +35,21 @@ export function cleanPlaceName(s) {
 export function nearestPlace(places, point) {
   let best = null
   for (const place of places || []) {
+    // A corrupt pin would win every comparison (NaN) and make every start look "new".
+    if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) continue
     const m = distanceM(point, place)
     if (!best || m < best.m) best = { place, m }
   }
   return best
 }
 
-const usable = fix => !!fix && Number.isFinite(fix.lat) && Number.isFinite(fix.lng) &&
+/** A reading good enough to match against, or to save a place at. */
+export const isUsableFix = fix => !!fix && Number.isFinite(fix.lat) && Number.isFinite(fix.lng) &&
   Number.isFinite(fix.accuracy) && fix.accuracy <= GOOD_ACCURACY_M
 
 export function suggestPlace({ fix, places, lastPlaceId }) {
   if (!places || !places.length) return { kind: 'empty' }
-  if (!usable(fix)) {
+  if (!isUsableFix(fix)) {
     return { kind: 'fallback', placeId: places.some(p => p.id === lastPlaceId) ? lastPlaceId : null }
   }
   const { place, m } = nearestPlace(places, fix)

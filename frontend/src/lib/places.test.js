@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   MATCH_M, NEARBY_M, GOOD_ACCURACY_M, NAME_MAX,
   distanceM, cleanPlaceName, nearestPlace, suggestPlace, mergeSuggestion,
-  addPlace, renamePlace, movePlace, deletePlace, setWorkoutPlace, DEFAULT_TILES, tileConfig
+  addPlace, renamePlace, movePlace, deletePlace, setWorkoutPlace, DEFAULT_TILES, tileConfig, isUsableFix
 } from './places.js'
 
 const GYM = { id: 'g', name: 'Gym', lat: 14.6400, lng: 121.0770, created: 1 }
@@ -165,5 +165,24 @@ describe('tileConfig', () => {
   it('uses the self-hoster’s tiles when configured', () => {
     expect(tileConfig({ map: { tileUrl: 'https://x/{z}/{x}/{y}.png', attribution: 'X' } }))
       .toEqual({ tileUrl: 'https://x/{z}/{x}/{y}.png', attribution: 'X' })
+  })
+})
+
+describe('isUsableFix', () => {
+  it('accepts a good fix and rejects weak, missing or garbage ones', () => {
+    expect(isUsableFix({ lat: 1, lng: 2, accuracy: 50 })).toBe(true)
+    expect(isUsableFix({ lat: 1, lng: 2, accuracy: 2000 })).toBe(false)
+    expect(isUsableFix({ lat: NaN, lng: 2, accuracy: 5 })).toBe(false)
+    expect(isUsableFix({ lat: 1, lng: 2 })).toBe(false)
+    expect(isUsableFix(null)).toBe(false)
+  })
+})
+
+describe('nearestPlace with a corrupt saved place', () => {
+  it('skips places whose coordinates are not finite, so one bad pin cannot make every start "new"', () => {
+    const bad = { id: 'bad', name: 'Bad', lat: NaN, lng: null, created: 1 }
+    expect(nearestPlace([bad, GYM], offsetN(GYM, 50)).place.id).toBe('g')
+    expect(nearestPlace([bad], GYM)).toBeNull()
+    expect(suggestPlace({ fix: fix(offsetN(GYM, 50)), places: [bad, GYM], lastPlaceId: null })).toEqual({ kind: 'match', placeId: 'g' })
   })
 })
