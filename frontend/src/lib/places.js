@@ -97,3 +97,14 @@ export function setWorkoutPlace(s, rec, placeId) {
   rec.placeName = p.name
   s.lastPlaceId = p.id
 }
+
+/* ---------- map tiles ---------- */
+
+export const DEFAULT_TILES = { tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OpenStreetMap contributors' }
+
+/** Tiles from GET /api/config's `map` when the server configured them, else OpenStreetMap. */
+export function tileConfig(config) {
+  const m = config && config.map
+  if (!m || typeof m.tileUrl !== 'string' || !m.tileUrl) return DEFAULT_TILES
+  return { tileUrl: m.tileUrl, attribution: typeof m.attribution === 'string' ? m.attribution : '' }
+}

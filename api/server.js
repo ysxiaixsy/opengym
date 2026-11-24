@@ -13,6 +13,7 @@ import * as coachConfig from './coach/config.js';
 import * as coachJobs from './coach/jobs.js';
 import { coachRoutes } from './coach/routes.js';
 import { startCadence } from './coach/cadence.js';
+import { mapConfig } from './map.js';
 
 const PORT = +(process.env.PORT || 3000);
 const DATA = process.env.DATA_DIR || '/data';
@@ -273,7 +274,8 @@ const routes = {
   // the app it was before the feature existed.
   'GET /api/config': async (req, res) => {
     const coach = coachConfig.publicConfig();
-    json(res, 200, { invite_only: INVITE_ONLY, ...(coach ? { coach } : {}) });
+    const map = mapConfig();
+    json(res, 200, { invite_only: INVITE_ONLY, ...(coach ? { coach } : {}), ...(map ? { map } : {}) });
   },
 
   'GET /api/me': async (req, res) => {

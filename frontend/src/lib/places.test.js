@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   MATCH_M, NEARBY_M, GOOD_ACCURACY_M, NAME_MAX,
   distanceM, cleanPlaceName, nearestPlace, suggestPlace, mergeSuggestion,
-  addPlace, renamePlace, movePlace, deletePlace, setWorkoutPlace
+  addPlace, renamePlace, movePlace, deletePlace, setWorkoutPlace, DEFAULT_TILES, tileConfig
 } from './places.js'
 
 const GYM = { id: 'g', name: 'Gym', lat: 14.6400, lng: 121.0770, created: 1 }
@@ -152,5 +152,18 @@ describe('mutators', () => {
     expect(rec.placeId).toBeUndefined()
     expect(rec.placeName).toBeUndefined()
     expect(s.lastPlaceId).toBe('h')
+  })
+})
+
+describe('tileConfig', () => {
+  it('uses OpenStreetMap when the server says nothing', () => {
+    expect(DEFAULT_TILES).toEqual({ tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OpenStreetMap contributors' })
+    expect(tileConfig(null)).toEqual(DEFAULT_TILES)
+    expect(tileConfig({})).toEqual(DEFAULT_TILES)
+    expect(tileConfig({ map: { tileUrl: '' } })).toEqual(DEFAULT_TILES)
+  })
+  it('uses the self-hoster’s tiles when configured', () => {
+    expect(tileConfig({ map: { tileUrl: 'https://x/{z}/{x}/{y}.png', attribution: 'X' } }))
+      .toEqual({ tileUrl: 'https://x/{z}/{x}/{y}.png', attribution: 'X' })
   })
 })
