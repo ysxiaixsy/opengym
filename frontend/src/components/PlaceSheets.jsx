@@ -1,0 +1,117 @@
+// Workout places UI: the map sheet for setting / moving a place, the picker used at check-in
+// and on workouts, and the Places list in Settings. Logic lives in lib/places.js.
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { useStore } from '../store/useStore.js'
+import { useUI } from '../store/useUI.js'
+import { t } from '../lib/i18n.js'
+import { getFix } from '../lib/geo.js'
+import { addPlace, movePlace, renamePlace, nearestPlace, cleanPlaceName, tileConfig, MATCH_M, NAME_MAX } from '../lib/places.js'
+import { Button, TextField } from './ui.jsx'
+
+const PlaceMap = lazy(() => import('./PlaceMap.jsx'))
+
+const S = () => useStore.getState().S
+const update = (...a) => useStore.getState().update(...a)
+const ui = () => useUI.getState()
+
+/* ---------- a two-answer question (ConfirmDialog's cancel can't carry an action) ---------- */
+function Ask({ title, message, yes, no, onYes, onNo, close }) {
+  return <div style={{ textAlign: 'center', padding: '4px 0' }}>
+    <h3 style={{ marginBottom: 8 }}>{title}</h3>
+    {message && <div className="muted" style={{ marginBottom: 18, lineHeight: 1.5 }}>{message}</div>}
+    <Button variant="primary" onClick={() => { close(); onYes() }}>{yes}</Button>
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" onClick={() => { close(); onNo() }}>{no}</Button>
+  </div>
+}
+const ask = opts => ui().openSheet(close => <Ask {...opts} close={close} />, { kind: 'center' })
+
+/* ---------- set a new place, or move / rename an existing one ---------- */
+function PlaceMapSheet({ placeId, onDone, close }) {
+  const st = useStore(s => s.S)
+  const config = useStore(s => s.config)
+  const editing = placeId ? (st.places || []).find(p => p.id === placeId) : null
+  const [name, setName] = useState(editing ? editing.name : '')
+  const [err, setErr] = useState('')
+  // null = still locating; then { lat, lng } | false (no fix)
+  const [fix, setFix] = useState(null)
+  const [start, setStart] = useState(editing ? { lat: editing.lat, lng: editing.lng } : null)
+  const [center, setCenter] = useState(start)
+  const [offline, setOffline] = useState(typeof navigator !== 'undefined' && navigator.onLine === false)
+
+  useEffect(() => {
+    let live = true
+    // Create mode asks for location here — this is where the permission prompt first appears.
+    getFix().then(f => {
+      if (!live) return
+      setFix(f || false)
+      if (!editing) {
+        const last = (S().places || []).find(p => p.id === S().lastPlaceId)
+        const c = f ? { lat: f.lat, lng: f.lng } : last ? { lat: last.lat, lng: last.lng } : null
+        setStart(c); setCenter(c)
+      }
+    })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const locating = !editing && fix === null
+  const point = offline ? (fix || null) : center
+  const finish = id => { close(); onDone && onDone(id) }
+
+  const save = () => {
+    const n = cleanPlaceName(name)
+    if (!n) { setErr(t('Give this place a name.')); return }
+    if (!point) { setErr(t('Can’t tell where you are right now.')); return }
+    const at = { lat: point.lat, lng: point.lng }
+    if (editing) {
+      update(s => { movePlace(s, editing.id, at); if (n !== editing.name) renamePlace(s, editing.id, n) })
+      return finish(editing.id)
+    }
+    const create = () => { let id; update(s => { id = addPlace(s, { name: n, ...at }).id }); finish(id) }
+    const near = nearestPlace(S().places, at)
+    if (near && near.m <= MATCH_M) {
+      return ask({
+        title: t('Is this {0}?', near.place.name),
+        message: t('You already saved a place right here.'),
+        yes: t('Yes, use {0}', near.place.name), no: t('No, save a new place'),
+        onYes: () => finish(near.place.id), onNo: create
+      })
+    }
+    create()
+  }
+
+  return <>
+    <h3>{editing ? t('Edit place') : t('New place')}</h3>
+    {offline ? (
+      <div className="muted small" style={{ margin: '6px 0 14px', lineHeight: 1.5 }}>
+        {fix ? t('The map can’t load right now. Save this place at your current position — you can fix the pin later in Settings.')
+          : fix === false ? t('The map can’t load and your location isn’t available, so this place can’t be saved yet.')
+            : t('Finding your location…')}
+      </div>
+    ) : locating ? (
+      <div className="placemap placemap-wait muted small">{t('Finding your location…')}</div>
+    ) : (
+      <>
+        <Suspense fallback={<div className="placemap placemap-wait muted small">{t('Loading map…')}</div>}>
+          <PlaceMap center={start || { lat: 20, lng: 0 }} zoom={start ? 17 : 2} tiles={tileConfig(config)}
+            onMove={setCenter} onTilesFailed={() => setOffline(true)} />
+        </Suspense>
+        <div className="muted small" style={{ margin: '6px 0 12px' }}>{t('Drag the map so the pin sits on the place.')}</div>
+      </>
+    )}
+    <TextField value={name} maxLength={NAME_MAX} placeholder={t('Name — e.g. Home, Gold’s Gym BGC')}
+      onChange={e => { setName(e.target.value); setErr('') }} />
+    {err && <div className="small" style={{ color: 'var(--red)', marginTop: 6 }}>{err}</div>}
+    <div style={{ height: 14 }} />
+    <Button variant="primary" disabled={offline && !fix} onClick={save}>
+      {offline ? t('Save at my current position') : t('Save place')}</Button>
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" className="dim" onClick={close}>{t('Cancel')}</Button>
+  </>
+}
+
+/** Set a new place (no placeId) or move/rename one. onDone(placeId) after saving or picking a duplicate. */
+export function placeMapSheet({ placeId, onDone } = {}) {
+  return ui().openSheet(close => <PlaceMapSheet placeId={placeId} onDone={onDone} close={close} />)
+}
