@@ -5,7 +5,7 @@ import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { t } from '../lib/i18n.js'
 import { getFix } from '../lib/geo.js'
-import { addPlace, movePlace, renamePlace, nearestPlace, cleanPlaceName, tileConfig, suggestPlace, mergeSuggestion, MATCH_M, NAME_MAX } from '../lib/places.js'
+import { addPlace, movePlace, renamePlace, deletePlace, nearestPlace, cleanPlaceName, tileConfig, suggestPlace, mergeSuggestion, MATCH_M, NAME_MAX } from '../lib/places.js'
 import { Button, TextField } from './ui.jsx'
 import Icon from './Icon.jsx'
 
@@ -193,4 +193,66 @@ function PlaceLine({ icon, text, dim, onClick }) {
   return <button className="placeline" onClick={onClick}>
     <Icon name={icon} /><span className={dim ? 'dim' : ''}>{text}</span><Icon name="chevronRight" className="chev" />
   </button>
+}
+
+/* ---------- Settings → Places ---------- */
+function RenamePlace({ place, close }) {
+  const [name, setName] = useState(place.name)
+  const [err, setErr] = useState('')
+  const save = () => {
+    const n = cleanPlaceName(name)
+    if (!n) { setErr(t('Give this place a name.')); return }
+    update(s => renamePlace(s, place.id, n))
+    close()
+  }
+  return <>
+    <h3>{t('Rename place')}</h3>
+    <div style={{ height: 10 }} />
+    <TextField value={name} maxLength={NAME_MAX} autoFocus onChange={e => { setName(e.target.value); setErr('') }} />
+    {err && <div className="small" style={{ color: 'var(--red)', marginTop: 6 }}>{err}</div>}
+    <div className="muted small" style={{ marginTop: 6 }}>{t('Past workouts at this place show the new name.')}</div>
+    <div style={{ height: 14 }} />
+    <Button variant="primary" onClick={save}>{t('Save')}</Button>
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" className="dim" onClick={close}>{t('Cancel')}</Button>
+  </>
+}
+
+function PlaceActions({ place, close }) {
+  const after = fn => () => { close(); fn() }
+  return <>
+    <h3>{place.name}</h3>
+    <div className="list" style={{ margin: '12px 0' }}>
+      <div className="item" onClick={after(() => ui().openSheet(c => <RenamePlace place={place} close={c} />))}>
+        <Icon name="pencil" /><div className="grow"><div className="tt">{t('Rename')}</div></div></div>
+      <div className="item" onClick={after(() => placeMapSheet({ placeId: place.id }))}>
+        <Icon name="pin" /><div className="grow"><div className="tt">{t('Move pin')}</div></div></div>
+      <div className="item" style={{ color: 'var(--red)' }} onClick={after(() => ask({
+        title: t('Delete {0}?', place.name), message: t('Past workouts keep this name.'),
+        yes: t('Delete'), no: t('Cancel'), onYes: () => update(s => deletePlace(s, place.id)), onNo: () => {}
+      }))}>
+        <Icon name="trash" /><div className="grow"><div className="tt">{t('Delete')}</div></div></div>
+    </div>
+    <Button variant="ghost" className="dim" onClick={close}>{t('Close')}</Button>
+  </>
+}
+
+function PlacesList({ close }) {
+  const places = useStore(s => s.S.places) || []
+  return <>
+    <h3>{t('Places')}</h3>
+    <div className="muted small" style={{ marginTop: 4 }}>{t('Where you train. A workout is tagged with the place you’re at when it starts.')}</div>
+    <div className="list" style={{ margin: '12px 0' }}>
+      {places.map(p => <div key={p.id} className="item" onClick={() => ui().openSheet(c => <PlaceActions place={p} close={c} />)}>
+        <Icon name="pin" /><div className="grow"><div className="tt">{p.name}</div></div>
+        <Icon name="chevronRight" className="chev" /></div>)}
+      <div className="item" onClick={() => placeMapSheet()}>
+        <Icon name="plus" /><div className="grow"><div className="tt">{t('Add place')}</div></div></div>
+    </div>
+    <Button variant="ghost" className="dim" onClick={close}>{t('Done')}</Button>
+  </>
+}
+
+export function placesSheet() {
+  return ui().openSheet(close => <PlacesList close={close} />)
 }
