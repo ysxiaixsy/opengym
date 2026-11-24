@@ -116,3 +116,21 @@ test('declined changes are carried forward so the Coach does not nag', () => {
   assert.equal(p.previouslyDeclined.length, 1);
   assert.equal(p.previouslyDeclined[0].type, 'sets');
 });
+
+/* Workout places are a label for the user's own history — the Coach never gets them, not the
+   name, not the id, not the saved coordinates. Asserted on absence, like the identity test. */
+test('payload never carries workout places', () => {
+  const S = sampleState({
+    places: [{ id: 'p1', name: 'Secret Gym BGC', lat: 14.5511, lng: 121.0512, created: 1 }],
+    lastPlaceId: 'p1'
+  });
+  // Dated today so the workouts are inside the review window and actually reach the payload.
+  const today = new Date().toISOString().slice(0, 10);
+  S.workouts.forEach(w => { w.d = today; w.placeId = 'p1'; w.placeName = 'Secret Gym BGC'; });
+  const p = payload.build(S, 'u', { kind: 'review' });
+  assert.ok(p.window.workouts.length > 0, 'fixture workouts must reach the payload for this to mean anything');
+  const json = JSON.stringify(p);
+  for (const f of ['Secret Gym', 'placeId', 'placeName', 'places', 'lastPlaceId', '14.5511', '121.0512']) {
+    assert.ok(!json.includes(f), `payload leaked ${f}`);
+  }
+});
